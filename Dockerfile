@@ -23,14 +23,22 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y libreoffice fonts-thai-tlwg
 
+# Built-in fonts (baked into the image)
 COPY fonts /usr/share/fonts/custom
+
+# fontconfig: also scan /app/fonts so mounted fonts are picked up at runtime
+RUN mkdir -p /app/fonts && \
+    printf '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig>\n  <dir>/app/fonts</dir>\n</fontconfig>\n' \
+    > /etc/fonts/conf.d/99-app-fonts.conf
 
 RUN fc-cache -fv
 
 COPY --from=builder /app/pdf-converter /app/pdf-converter
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 5000
 
 VOLUME [ "/app/tmp" ]
 
-CMD ["/app/pdf-converter"]
+ENTRYPOINT ["/app/entrypoint.sh"]

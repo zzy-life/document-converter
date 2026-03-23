@@ -24,6 +24,7 @@ func main() {
 
 	http.HandleFunc("/", handleHealthCheck)
 	http.HandleFunc("/convert", handleConvert)
+	http.HandleFunc("/convert/doc-to-docx", handleDocToDocx)
 
 	fmt.Println("Starting server on :5000")
 	if err := http.ListenAndServe(":5000", nil); err != nil {
@@ -93,6 +94,67 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := io.Copy(w, pdfFile); err != nil {
 		http.Error(w, "Failed to write PDF to response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Failed to read uploaded file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	ext := filepath.Ext(header.Filename)
+	if ext != ".doc" {
+		http.Error(w, "Only .doc files are supported", http.StatusBadRequest)
+		return
+	}
+
+	baseName := time.Now().Format("20060102150405")
+	inputFilePath := filepath.Join(tempDir, baseName+".doc")
+	outputFilePath := filepath.Join(tempDir, baseName+".docx")
+
+	inputFile, err := os.Create(inputFilePath)
+	if err != nil {
+		http.Error(w, "Failed to create temporary file", http.StatusInternalServerError)
+		return
+	}
+	defer inputFile.Close()
+	defer os.Remove(inputFilePath)
+
+	if _, err = io.Copy(inputFile, file); err != nil {
+		http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
+		return
+	}
+
+	cmd := exec.Command("soffice", "--headless", "--convert-to", "docx:MS Word 2007 XML", inputFilePath, "--outdir", tempDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Println(string(output))
+		http.Error(w, "Failed to convert file to DOCX", http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(outputFilePath)
+
+	docxFile, err := os.Open(outputFilePath)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Failed to read converted DOCX", http.StatusInternalServerError)
+		return
+	}
+	defer docxFile.Close()
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition", `attachment; filename="output.docx"`)
+
+	if _, err := io.Copy(w, docxFile); err != nil {
+		http.Error(w, "Failed to write DOCX to response", http.StatusInternalServerError)
 		return
 	}
 }
