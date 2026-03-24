@@ -1,6 +1,11 @@
 services:
   pdf-converter:
-    image: wteja/pdf-converter:latest
+    image: zzy1998/document-converter:latest
     ports:
       - "5000:5000"
     restart: unless-stopped
+    volumes:
+      # Mount a local fonts directory to make custom fonts available.
+      # Place .ttf / .otf files in ./fonts on the host and they will be
+      # loaded automatically when the container starts.
+      - ./fonts:/app/fonts:ro
