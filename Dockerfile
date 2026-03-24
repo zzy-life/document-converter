@@ -1,7 +1,7 @@
 # First Stage: Build the application
 FROM golang:1.23.4-alpine3.21 AS builder
 
-LABEL maintainer="wteja"
+LABEL maintainer="zzy1998"
 
 WORKDIR /app
 

@@ -29,7 +29,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/pdf-converter:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/pdf-converter:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/document-converter:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/document-converter:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

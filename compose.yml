@@ -1,6 +1,6 @@
 services:
   pdf-converter:
-    image: wteja/pdf-converter:latest
+    image: zzy1998/document-converter:latest
     ports:
       - "5000:5000"
     restart: unless-stopped
