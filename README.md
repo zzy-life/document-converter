@@ -1,131 +1,82 @@
-# Office to PDF Converter
+# Document Converter
 
-This is a simple HTTP server application written in Go that converts uploaded office files into PDF files using LibreOffice in headless mode. The server listens on port `5000` and exposes a single endpoint for file conversion. It also includes automatic cleanup of temporary files older than one hour.
+A simple HTTP server written in Go that converts office documents using LibreOffice in headless mode. Listens on port `5000` and automatically cleans up temporary files older than one hour.
 
 ## Features
 
-- Converts various office files to PDF format using LibreOffice.
-- Handles file uploads via HTTP POST requests.
-- Automatic cleanup of old files from the temporary directory after one hour.
-- Minimal and efficient implementation using Go.
+- Convert `.xlsx` to PDF
+- Convert `.doc` to `.docx`
+- Mountable custom fonts via Docker volume
+- Automatic cleanup of temporary files after one hour
 
 ## Requirements
 
-- **Go**: Ensure Go is installed on your system ([Download Go](https://golang.org/dl/)).
-- **LibreOffice**: LibreOffice must be installed and accessible via the `soffice` command.
+- **Go**: [Download Go](https://golang.org/dl/)
+- **LibreOffice**: Must be installed and accessible via the `soffice` command
 
-## Supported File Formats
+## API
 
-This application relies on LibreOffice for file conversion, so it supports any file format LibreOffice can handle. Below are the formats that can be converted to PDF:
+### `POST /convert/to-pdf`
 
-### Document Formats
-- `.doc`, `.docx` (Microsoft Word)
-- `.odt`, `.ott` (LibreOffice/OpenDocument Text)
-- `.rtf` (Rich Text Format)
-- `.txt` (Plain Text)
-
-### Spreadsheet Formats
-- `.xls`, `.xlsx` (Microsoft Excel)
-- `.ods`, `.ots` (LibreOffice/OpenDocument Spreadsheet)
-- `.csv` (Comma-Separated Values)
-
-### Presentation Formats
-- `.ppt`, `.pptx` (Microsoft PowerPoint)
-- `.odp`, `.otp` (LibreOffice/OpenDocument Presentation)
-
-### Other Formats
-- `.svg` (Scalable Vector Graphics)
-- `.html`, `.htm` (HTML Files)
-- `.xml` (XML Files)
-- `.pdf` (for PDF editing and re-exporting)
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone <repository_url>
-   cd <repository_directory>
-   ```
-
-2. Install dependencies:
-   This application does not have external dependencies, but ensure you have LibreOffice installed.
-
-3. Build the application:
-   ```bash
-   go build -o pdf-converter .
-   ```
-
-4. Run the application:
-   ```bash
-   ./pdf-converter
-   ```
-
-The server will start listening on `http://localhost:5000`.
-
-## API Usage
-
-### **Endpoint: `/convert`**
-- **Method**: `POST`
-- **Field Name**: `file`
-- **File Type**: Any supported format (e.g., `.xlsx`, `.docx`).
-
-#### Request Example (Using `curl`):
-```bash
-curl -X POST -F "file=@example.xlsx" http://localhost:5000/convert --output output.pdf
-```
-
-#### Response:
-- **Success**: Returns the converted PDF file as a response with the `Content-Type` set to `application/pdf`.
-- **Error**: Returns an appropriate HTTP status code and error message if the conversion fails.
-
-## Public Docker Image
-
-You can use the publicly available Docker image for this application:
+Convert an `.xlsx` file to PDF.
 
 ```bash
-docker pull wteja/pdf-converter
+curl -X POST -F "file=@example.xlsx" http://localhost:5000/convert/to-pdf -o output.pdf
 ```
 
-Run the container:
+**Response**: PDF file (`application/pdf`)
+
+---
+
+### `POST /convert/to-docx`
+
+Convert a `.doc` file to `.docx`.
 
 ```bash
-docker run -p 5000:5000 wteja/pdf-converter
+curl -X POST -F "file=@example.doc" http://localhost:5000/convert/to-docx -o output.docx
 ```
 
-## Configuration
+**Response**: DOCX file (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
 
-- Temporary files are stored in the `./tmp` directory. Ensure the application has write access to this directory.
-- The application automatically removes files older than one hour from the `tmp` directory.
+---
 
-## Code Overview
+### `GET /`
 
-### **Main Components**
+Health check. Returns `OK`.
 
-1. **File Upload and Conversion**:
-   - The `/convert` endpoint processes file uploads, saves them to the `tmp` directory, and invokes LibreOffice in headless mode to perform the conversion.
+## Docker
 
-2. **Temporary Directory Management**:
-   - All uploaded and converted files are stored in the `tmp` directory.
-   - A background goroutine periodically checks and deletes files older than one hour.
+### Pull and run
 
-3. **Error Handling**:
-   - Comprehensive error handling for file uploads, conversions, and temporary file management.
+```bash
+docker pull zzy1998/document-converter
+docker run -p 5000:5000 zzy1998/document-converter
+```
 
-### **Key Functions**
-- `handleConvert`: Handles the HTTP requests, manages file upload and conversion, and returns the resulting PDF.
-- `cleanupOldFiles`: Periodically deletes old files from the `tmp` directory.
+### Docker Compose
 
-## Future Improvements
+```yaml
+services:
+  document-converter:
+    image: zzy1998/document-converter:latest
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    volumes:
+      - ./fonts:/app/fonts:ro  # optional: mount custom fonts
+```
 
-- Support additional file formats (e.g., `.pptx`, `.odg`).
-- Add configurable cleanup duration and temporary directory path.
-- Implement better logging and monitoring.
+### Custom Fonts
+
+Place `.ttf` or `.otf` font files in a local `fonts/` directory and mount it to `/app/fonts`. The container loads them automatically on startup — no manual `exec` needed.
+
+## Local Build
+
+```bash
+go build -o document-converter .
+./document-converter
+```
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
-
-## Author
-
-Developed by [Weerayut Teja](https://github.com/wteja). Contributions and feedback are welcome!
-
+MIT License. See `LICENSE` for details.
