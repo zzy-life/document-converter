@@ -23,8 +23,8 @@ func main() {
 	go cleanupOldFiles(tempDir, 1*time.Hour)
 
 	http.HandleFunc("/", handleHealthCheck)
-	http.HandleFunc("/convert", handleConvert)
-	http.HandleFunc("/convert/doc-to-docx", handleDocToDocx)
+	http.HandleFunc("/convert/to-pdf", handleConvert)
+	http.HandleFunc("/convert/to-docx", handleDocToDocx)
 
 	fmt.Println("Starting server on :5000")
 	if err := http.ListenAndServe(":5000", nil); err != nil {
