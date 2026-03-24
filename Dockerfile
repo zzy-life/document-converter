@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o pdf-converter .
+RUN go build -o document-converter .
 
 # Second Stage: Copy the binary and required files to a new image
 FROM ubuntu:latest AS runner
@@ -33,7 +33,7 @@ RUN mkdir -p /app/fonts && \
 
 RUN fc-cache -fv
 
-COPY --from=builder /app/pdf-converter /app/pdf-converter
+COPY --from=builder /app/document-converter /app/document-converter
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
