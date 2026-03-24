@@ -46,12 +46,20 @@ Health check. Returns `OK`.
 
 ## Docker
 
-### Pull and run
+### docker run
 
 ```bash
-docker pull zzy1998/document-converter
-docker run -p 5000:5000 zzy1998/document-converter
+docker run -d \
+  --name document-converter \
+  -p 5000:5000 \
+  -v $(pwd)/fonts:/app/fonts:ro \
+  -v $(pwd)/tmp:/app/tmp \
+  -e LANG=zh_CN.UTF-8 \
+  -e LC_ALL=zh_CN.UTF-8 \
+  zzy1998/document-converter:latest
 ```
+
+字体挂载到 `/app/fonts` 后容器启动时自动加载，无需再手动 `docker exec` 复制字体或刷新缓存。
 
 ### Docker Compose
 
@@ -62,13 +70,13 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped
+    environment:
+      - LANG=zh_CN.UTF-8
+      - LC_ALL=zh_CN.UTF-8
     volumes:
-      - ./fonts:/app/fonts:ro  # optional: mount custom fonts
+      - ./fonts:/app/fonts:ro
+      - ./tmp:/app/tmp
 ```
-
-### Custom Fonts
-
-Place `.ttf` or `.otf` font files in a local `fonts/` directory and mount it to `/app/fonts`. The container loads them automatically on startup — no manual `exec` needed.
 
 ## Local Build
 
