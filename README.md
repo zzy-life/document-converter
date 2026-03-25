@@ -4,7 +4,9 @@ A simple HTTP server written in Go that converts office documents using LibreOff
 
 ## Features
 
-- Convert `.xlsx` to PDF
+- Convert Word documents (`.doc`, `.docx`, `.odt`, `.rtf`) to PDF
+- Convert Excel spreadsheets (`.xls`, `.xlsx`, `.ods`, `.csv`) to PDF
+- Convert PowerPoint presentations (`.ppt`, `.pptx`, `.odp`) to PDF
 - Convert `.doc` to `.docx`
 - Mountable custom fonts via Docker volume
 - Automatic cleanup of temporary files after one hour
@@ -18,10 +20,23 @@ A simple HTTP server written in Go that converts office documents using LibreOff
 
 ### `POST /convert/to-pdf`
 
-Convert an `.xlsx` file to PDF.
+Convert an Office document to PDF. Supported formats:
+
+| Format | Extensions |
+|--------|------------|
+| Word   | `.doc` `.docx` `.odt` `.rtf` |
+| Excel  | `.xls` `.xlsx` `.ods` `.csv` |
+| PowerPoint | `.ppt` `.pptx` `.odp` |
 
 ```bash
+# Word
+curl -X POST -F "file=@example.docx" http://localhost:5000/convert/to-pdf -o output.pdf
+
+# Excel
 curl -X POST -F "file=@example.xlsx" http://localhost:5000/convert/to-pdf -o output.pdf
+
+# PowerPoint
+curl -X POST -F "file=@example.pptx" http://localhost:5000/convert/to-pdf -o output.pdf
 ```
 
 **Response**: PDF file (`application/pdf`)
