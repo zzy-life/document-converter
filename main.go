@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -36,6 +37,20 @@ func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+// pdfFilter returns the LibreOffice PDF export filter for the given file extension.
+func pdfFilter(ext string) (string, bool) {
+	switch ext {
+	case ".doc", ".docx", ".odt", ".rtf":
+		return "writer_pdf_Export", true
+	case ".xls", ".xlsx", ".ods", ".csv":
+		return "calc_pdf_Export", true
+	case ".ppt", ".pptx", ".odp":
+		return "impress_pdf_Export", true
+	default:
+		return "", false
+	}
+}
+
 func handleConvert(w http.ResponseWriter, r *http.Request) {
 	// Ensure the request method is POST
 	if r.Method != http.MethodPost {
@@ -44,16 +59,22 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse the uploaded file
-	file, _, err := r.FormFile("file")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "Failed to read uploaded file", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	// Save the Excel file to a temporary location
-	baseName := time.Now().Format("20060102150405") // Timestamp format
-	inputFilePath := filepath.Join(tempDir, baseName+".xlsx")
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	filter, ok := pdfFilter(ext)
+	if !ok {
+		http.Error(w, "Unsupported file type: "+ext, http.StatusBadRequest)
+		return
+	}
+
+	baseName := time.Now().Format("20060102150405")
+	inputFilePath := filepath.Join(tempDir, baseName+ext)
 	outputFilePath := filepath.Join(tempDir, baseName+".pdf")
 
 	inputFile, err := os.Create(inputFilePath)
@@ -64,22 +85,20 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 	defer inputFile.Close()
 	defer os.Remove(inputFilePath)
 
-	_, err = io.Copy(inputFile, file)
-	if err != nil {
+	if _, err = io.Copy(inputFile, file); err != nil {
 		http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
 		return
 	}
 
-	// Convert the Excel file to PDF using LibreOffice
-	cmd := exec.Command("soffice", "--headless", "--convert-to", "pdf:calc_pdf_Export", inputFilePath, "--outdir", tempDir)
-	if err := cmd.Run(); err != nil {
-		fmt.Println(err)
+	// Convert to PDF using LibreOffice
+	cmd := exec.Command("soffice", "--headless", "--convert-to", "pdf:"+filter, inputFilePath, "--outdir", tempDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Println(string(output))
 		http.Error(w, "Failed to convert file to PDF", http.StatusInternalServerError)
 		return
 	}
 	defer os.Remove(outputFilePath)
 
-	// Read the converted PDF file
 	pdfFile, err := os.Open(outputFilePath)
 	if err != nil {
 		fmt.Println(err)
@@ -88,7 +107,6 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 	}
 	defer pdfFile.Close()
 
-	// Write the PDF file as response
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", `attachment; filename="output.pdf"`)
 
