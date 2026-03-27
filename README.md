@@ -95,12 +95,26 @@ docker run -d \
   -p 5000:5000 \
   -v $(pwd)/fonts:/app/fonts:ro \
   -v $(pwd)/tmp:/app/tmp \
+  -v $(pwd)/font-mappings.json:/app/font-mappings.json:ro \
   -e LANG=zh_CN.UTF-8 \
   -e LC_ALL=zh_CN.UTF-8 \
   zzy1998/document-converter:latest
 ```
 
 字体挂载到 `/app/fonts` 后容器启动时自动加载，无需再手动 `docker exec` 复制字体或刷新缓存。
+
+`font-mappings.json` 为可选挂载，不挂载时使用内置默认映射（`Microsoft YaHei → 微软雅黑`）。
+
+### font-mappings.json
+
+```json
+{
+  "Microsoft YaHei": "微软雅黑",
+  "SimSun": "宋体",
+  "SimHei": "黑体",
+  "KaiTi": "楷体"
+}
+```
 
 ### Docker Compose
 
@@ -117,6 +131,7 @@ services:
     volumes:
       - ./fonts:/app/fonts:ro
       - ./tmp:/app/tmp
+      - ./font-mappings.json:/app/font-mappings.json:ro
 ```
 
 ## Local Build

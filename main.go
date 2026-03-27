@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,8 +14,34 @@ import (
 )
 
 const tempDir = "./tmp" // Directory for temporary files
+const fontMappingsFile = "./font-mappings.json"
+
+// defaultFontMappings is used when font-mappings.json is not present.
+var defaultFontMappings = map[string]string{
+	"Microsoft YaHei": "微软雅黑",
+}
+
+// fontMappings holds the active font name substitutions loaded at startup.
+var fontMappings map[string]string
+
+func loadFontMappings() {
+	data, err := os.ReadFile(fontMappingsFile)
+	if err != nil {
+		fontMappings = defaultFontMappings
+		fmt.Println("font-mappings.json not found, using built-in defaults")
+		return
+	}
+	if err := json.Unmarshal(data, &fontMappings); err != nil {
+		fontMappings = defaultFontMappings
+		fmt.Println("Failed to parse font-mappings.json, using built-in defaults:", err)
+		return
+	}
+	fmt.Printf("Loaded %d font mapping(s) from %s\n", len(fontMappings), fontMappingsFile)
+}
 
 func main() {
+	loadFontMappings()
+
 	// Ensure the temporary directory exists
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
 		fmt.Println("Failed to create temp directory:", err)
@@ -269,11 +296,17 @@ func fixBackslashPaths(html string) string {
 	})
 }
 
-// fixFontNames replaces English font names that LibreOffice on Linux cannot resolve
-// with their Chinese equivalents which are correctly recognised.
+// fixFontNames replaces font names using the mappings loaded from font-mappings.json.
+// Matching is case-insensitive.
 func fixFontNames(html string) string {
-	html = strings.ReplaceAll(html, "Microsoft YaHei", "微软雅黑")
-	html = strings.ReplaceAll(html, "microsoft yahei", "微软雅黑")
+	for from, to := range fontMappings {
+		html = strings.ReplaceAll(html, from, to)
+		// Also handle common case variations (all-lowercase)
+		lower := strings.ToLower(from)
+		if lower != from {
+			html = strings.ReplaceAll(html, lower, to)
+		}
+	}
 	return html
 }
 
