@@ -60,8 +60,6 @@ curl -X POST -F "file=@example.html" http://localhost:5000/convert/to-docx -o ou
 
 ---
 
----
-
 ### `POST /convert/local-to-docx`
 
 Convert an HTML file **already on the server** to DOCX. Images referenced by relative paths are resolved from the HTML file's directory, and backslash paths (Windows-style) are fixed automatically.
@@ -101,9 +99,9 @@ docker run -d \
   zzy1998/document-converter:latest
 ```
 
-字体挂载到 `/app/fonts` 后容器启动时自动加载，无需再手动 `docker exec` 复制字体或刷新缓存。
+Fonts mounted to `/app/fonts` are loaded automatically on container startup — no need to manually `docker exec` copy fonts or refresh the cache.
 
-`font-mappings.json` 为可选挂载，不挂载时使用内置默认映射（`Microsoft YaHei → 微软雅黑`）。
+`font-mappings.json` is optional. If not mounted, the built-in default (`Microsoft YaHei → 微软雅黑`) is used.
 
 ### font-mappings.json
 
