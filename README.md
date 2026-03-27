@@ -8,6 +8,7 @@ A simple HTTP server written in Go that converts office documents using LibreOff
 - Convert Excel spreadsheets (`.xls`, `.xlsx`, `.ods`, `.csv`) to PDF
 - Convert PowerPoint presentations (`.ppt`, `.pptx`, `.odp`) to PDF
 - Convert `.doc` / `.html` to `.docx`
+- Convert server-side HTML (with local image assets) to `.docx` via `/convert/local-to-docx`
 - Mountable custom fonts via Docker volume
 - Automatic cleanup of temporary files after one hour
 
@@ -53,6 +54,27 @@ curl -X POST -F "file=@example.doc" http://localhost:5000/convert/to-docx -o out
 
 # HTML to DOCX
 curl -X POST -F "file=@example.html" http://localhost:5000/convert/to-docx -o output.docx
+```
+
+**Response**: DOCX file (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
+
+---
+
+---
+
+### `POST /convert/local-to-docx`
+
+Convert an HTML file **already on the server** to DOCX. Images referenced by relative paths are resolved from the HTML file's directory, and backslash paths (Windows-style) are fixed automatically.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string | Absolute path to the HTML file on the server |
+
+```bash
+curl -X POST \
+  -F "path=/www/wwwroot/myproject/output/index.html" \
+  http://localhost:5000/convert/local-to-docx \
+  -o output.docx
 ```
 
 **Response**: DOCX file (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
