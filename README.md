@@ -7,7 +7,7 @@ A simple HTTP server written in Go that converts office documents using LibreOff
 - Convert Word documents (`.doc`, `.docx`, `.odt`, `.rtf`) to PDF
 - Convert Excel spreadsheets (`.xls`, `.xlsx`, `.ods`, `.csv`) to PDF
 - Convert PowerPoint presentations (`.ppt`, `.pptx`, `.odp`) to PDF
-- Convert `.doc` to `.docx`
+- Convert `.doc` / `.html` to `.docx`
 - Mountable custom fonts via Docker volume
 - Automatic cleanup of temporary files after one hour
 
@@ -45,10 +45,14 @@ curl -X POST -F "file=@example.pptx" http://localhost:5000/convert/to-pdf -o out
 
 ### `POST /convert/to-docx`
 
-Convert a `.doc` file to `.docx`.
+Convert a `.doc` or `.html` file to `.docx`.
 
 ```bash
+# DOC to DOCX
 curl -X POST -F "file=@example.doc" http://localhost:5000/convert/to-docx -o output.docx
+
+# HTML to DOCX
+curl -X POST -F "file=@example.html" http://localhost:5000/convert/to-docx -o output.docx
 ```
 
 **Response**: DOCX file (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)

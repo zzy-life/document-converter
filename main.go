@@ -129,14 +129,14 @@ func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	ext := filepath.Ext(header.Filename)
-	if ext != ".doc" {
-		http.Error(w, "Only .doc files are supported", http.StatusBadRequest)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext != ".doc" && ext != ".html" && ext != ".htm" {
+		http.Error(w, "Only .doc, .html, .htm files are supported", http.StatusBadRequest)
 		return
 	}
 
 	baseName := time.Now().Format("20060102150405")
-	inputFilePath := filepath.Join(tempDir, baseName+".doc")
+	inputFilePath := filepath.Join(tempDir, baseName+ext)
 	outputFilePath := filepath.Join(tempDir, baseName+".docx")
 
 	inputFile, err := os.Create(inputFilePath)
@@ -152,7 +152,11 @@ func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := exec.Command("soffice", "--headless", "--convert-to", "docx:MS Word 2007 XML", inputFilePath, "--outdir", tempDir)
+	filter := "docx:MS Word 2007 XML"
+	if ext == ".html" || ext == ".htm" {
+		filter = "docx:MS Word 2007 XML:EmbedImages"
+	}
+	cmd := exec.Command("soffice", "--headless", "--convert-to", filter, inputFilePath, "--outdir", tempDir)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		fmt.Println(string(output))
 		http.Error(w, "Failed to convert file to DOCX", http.StatusInternalServerError)
