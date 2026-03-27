@@ -149,7 +149,18 @@ func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
 	defer inputFile.Close()
 	defer os.Remove(inputFilePath)
 
-	if _, err = io.Copy(inputFile, file); err != nil {
+	if ext == ".html" || ext == ".htm" {
+		raw, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "Failed to read uploaded file", http.StatusInternalServerError)
+			return
+		}
+		fixed := fixFontNames(string(raw))
+		if _, err = inputFile.WriteString(fixed); err != nil {
+			http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
+			return
+		}
+	} else if _, err = io.Copy(inputFile, file); err != nil {
 		http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
 		return
 	}
@@ -218,7 +229,7 @@ func handleLocalHtmlToDocx(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fix Windows-style backslashes in src/href attributes so LibreOffice can resolve them on Linux
-	fixedContent := fixBackslashPaths(string(content))
+	fixedContent := fixFontNames(fixBackslashPaths(string(content)))
 
 	htmlDir := filepath.Dir(htmlPath)
 	baseName := time.Now().Format("20060102150405")
@@ -267,6 +278,14 @@ func fixBackslashPaths(html string) string {
 		}
 		return parts[1] + `="` + strings.ReplaceAll(parts[2], `\`, `/`) + `"`
 	})
+}
+
+// fixFontNames replaces English font names that LibreOffice on Linux cannot resolve
+// with their Chinese equivalents which are correctly recognised.
+func fixFontNames(html string) string {
+	html = strings.ReplaceAll(html, "Microsoft YaHei", "微软雅黑")
+	html = strings.ReplaceAll(html, "microsoft yahei", "微软雅黑")
+	return html
 }
 
 // cleanupOldFiles removes files older than the specified duration from the given directory
