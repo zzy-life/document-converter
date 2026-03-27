@@ -8,6 +8,7 @@ A simple HTTP server written in Go that converts office documents using LibreOff
 - Convert Excel spreadsheets (`.xls`, `.xlsx`, `.ods`, `.csv`) to PDF
 - Convert PowerPoint presentations (`.ppt`, `.pptx`, `.odp`) to PDF
 - Convert `.doc` / `.html` to `.docx`
+- Convert server-side HTML (with local image assets) to `.docx` via `/convert/local-to-docx`
 - Mountable custom fonts via Docker volume
 - Automatic cleanup of temporary files after one hour
 
@@ -59,6 +60,25 @@ curl -X POST -F "file=@example.html" http://localhost:5000/convert/to-docx -o ou
 
 ---
 
+### `POST /convert/local-to-docx`
+
+Convert an HTML file **already on the server** to DOCX. Images referenced by relative paths are resolved from the HTML file's directory, and backslash paths (Windows-style) are fixed automatically.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string | Absolute path to the HTML file on the server |
+
+```bash
+curl -X POST \
+  -F "path=/www/wwwroot/myproject/output/index.html" \
+  http://localhost:5000/convert/local-to-docx \
+  -o output.docx
+```
+
+**Response**: DOCX file (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
+
+---
+
 ### `GET /`
 
 Health check. Returns `OK`.
@@ -73,12 +93,26 @@ docker run -d \
   -p 5000:5000 \
   -v $(pwd)/fonts:/app/fonts:ro \
   -v $(pwd)/tmp:/app/tmp \
+  -v $(pwd)/font-mappings.json:/app/font-mappings.json:ro \
   -e LANG=zh_CN.UTF-8 \
   -e LC_ALL=zh_CN.UTF-8 \
   zzy1998/document-converter:latest
 ```
 
-字体挂载到 `/app/fonts` 后容器启动时自动加载，无需再手动 `docker exec` 复制字体或刷新缓存。
+Fonts mounted to `/app/fonts` are loaded automatically on container startup — no need to manually `docker exec` copy fonts or refresh the cache.
+
+`font-mappings.json` is optional. If not mounted, the built-in default (`Microsoft YaHei → 微软雅黑`) is used.
+
+### font-mappings.json
+
+```json
+{
+  "Microsoft YaHei": "微软雅黑",
+  "SimSun": "宋体",
+  "SimHei": "黑体",
+  "KaiTi": "楷体"
+}
+```
 
 ### Docker Compose
 
@@ -95,6 +129,7 @@ services:
     volumes:
       - ./fonts:/app/fonts:ro
       - ./tmp:/app/tmp
+      - ./font-mappings.json:/app/font-mappings.json:ro
 ```
 
 ## Local Build

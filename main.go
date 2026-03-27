@@ -1,19 +1,47 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const tempDir = "./tmp" // Directory for temporary files
+const fontMappingsFile = "./font-mappings.json"
+
+// defaultFontMappings is used when font-mappings.json is not present.
+var defaultFontMappings = map[string]string{
+	"Microsoft YaHei": "微软雅黑",
+}
+
+// fontMappings holds the active font name substitutions loaded at startup.
+var fontMappings map[string]string
+
+func loadFontMappings() {
+	data, err := os.ReadFile(fontMappingsFile)
+	if err != nil {
+		fontMappings = defaultFontMappings
+		fmt.Println("font-mappings.json not found, using built-in defaults")
+		return
+	}
+	if err := json.Unmarshal(data, &fontMappings); err != nil {
+		fontMappings = defaultFontMappings
+		fmt.Println("Failed to parse font-mappings.json, using built-in defaults:", err)
+		return
+	}
+	fmt.Printf("Loaded %d font mapping(s) from %s\n", len(fontMappings), fontMappingsFile)
+}
 
 func main() {
+	loadFontMappings()
+
 	// Ensure the temporary directory exists
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
 		fmt.Println("Failed to create temp directory:", err)
@@ -26,6 +54,7 @@ func main() {
 	http.HandleFunc("/", handleHealthCheck)
 	http.HandleFunc("/convert/to-pdf", handleConvert)
 	http.HandleFunc("/convert/to-docx", handleDocToDocx)
+	http.HandleFunc("/convert/local-to-docx", handleLocalHtmlToDocx)
 
 	fmt.Println("Starting server on :5000")
 	if err := http.ListenAndServe(":5000", nil); err != nil {
@@ -179,6 +208,106 @@ func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to write DOCX to response", http.StatusInternalServerError)
 		return
 	}
+}
+
+// handleLocalHtmlToDocx converts a server-side HTML file (with local assets) to DOCX.
+// It accepts a "path" form field pointing to the absolute path of the HTML file.
+// Images referenced by relative paths are resolved from the HTML file's directory.
+func handleLocalHtmlToDocx(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	htmlPath := r.FormValue("path")
+	if htmlPath == "" {
+		http.Error(w, "Missing form field: path", http.StatusBadRequest)
+		return
+	}
+	htmlPath = filepath.Clean(htmlPath)
+
+	ext := strings.ToLower(filepath.Ext(htmlPath))
+	if ext != ".html" && ext != ".htm" {
+		http.Error(w, "path must point to an .html or .htm file", http.StatusBadRequest)
+		return
+	}
+
+	info, err := os.Stat(htmlPath)
+	if err != nil || info.IsDir() {
+		http.Error(w, "File not found: "+htmlPath, http.StatusBadRequest)
+		return
+	}
+
+	content, err := os.ReadFile(htmlPath)
+	if err != nil {
+		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+		return
+	}
+
+	// Fix Windows-style backslashes in src/href attributes so LibreOffice can resolve them on Linux
+	fixedContent := fixFontNames(fixBackslashPaths(string(content)))
+
+	htmlDir := filepath.Dir(htmlPath)
+	baseName := time.Now().Format("20060102150405")
+	tmpHtmlPath := filepath.Join(htmlDir, baseName+ext)
+	outputFilePath := filepath.Join(tempDir, baseName+".docx")
+
+	if err := os.WriteFile(tmpHtmlPath, []byte(fixedContent), 0644); err != nil {
+		http.Error(w, "Failed to write temporary HTML", http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tmpHtmlPath)
+
+	cmd := exec.Command("soffice", "--headless", "--convert-to", "docx:MS Word 2007 XML:EmbedImages", tmpHtmlPath, "--outdir", tempDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Println(string(output))
+		http.Error(w, "Failed to convert file to DOCX", http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(outputFilePath)
+
+	docxFile, err := os.Open(outputFilePath)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Failed to read converted DOCX", http.StatusInternalServerError)
+		return
+	}
+	defer docxFile.Close()
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition", `attachment; filename="output.docx"`)
+
+	if _, err := io.Copy(w, docxFile); err != nil {
+		http.Error(w, "Failed to write DOCX to response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// fixBackslashPaths replaces backslashes with forward slashes in HTML src/href attribute values.
+var backslashAttrRe = regexp.MustCompile(`(?i)(src|href)="([^"]*)"`)
+
+func fixBackslashPaths(html string) string {
+	return backslashAttrRe.ReplaceAllStringFunc(html, func(match string) string {
+		parts := backslashAttrRe.FindStringSubmatch(match)
+		if len(parts) != 3 {
+			return match
+		}
+		return parts[1] + `="` + strings.ReplaceAll(parts[2], `\`, `/`) + `"`
+	})
+}
+
+// fixFontNames replaces font names using the mappings loaded from font-mappings.json.
+// Matching is case-insensitive.
+func fixFontNames(html string) string {
+	for from, to := range fontMappings {
+		html = strings.ReplaceAll(html, from, to)
+		// Also handle common case variations (all-lowercase)
+		lower := strings.ToLower(from)
+		if lower != from {
+			html = strings.ReplaceAll(html, lower, to)
+		}
+	}
+	return html
 }
 
 // cleanupOldFiles removes files older than the specified duration from the given directory
