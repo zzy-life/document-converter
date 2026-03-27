@@ -294,12 +294,17 @@ func inlineImages(html, baseDir string) string {
 			return match
 		}
 		src := parts[2]
-		// Skip absolute URLs and existing data URIs
+		// Skip absolute URLs, protocol-relative URLs, and existing data URIs
 		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") ||
-			strings.HasPrefix(src, "data:") || strings.HasPrefix(src, "/") {
+			strings.HasPrefix(src, "data:") || strings.HasPrefix(src, "//") {
 			return match
 		}
-		imgPath := filepath.Join(baseDir, filepath.FromSlash(src))
+		var imgPath string
+		if filepath.IsAbs(src) {
+			imgPath = filepath.Clean(src)
+		} else {
+			imgPath = filepath.Join(baseDir, filepath.FromSlash(src))
+		}
 		data, err := os.ReadFile(imgPath)
 		if err != nil {
 			fmt.Println("inlineImages: could not read", imgPath, err)

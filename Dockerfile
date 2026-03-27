@@ -14,14 +14,14 @@ COPY . .
 RUN go build -o document-converter .
 
 # Second Stage: Copy the binary and required files to a new image
-FROM ubuntu:latest AS runner
+FROM ubuntu:24.04 AS runner
 
 ENV GDK_DPI_SCALE=1
 ENV GDK_SCALE=1
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y libreoffice fonts-thai-tlwg
+RUN apt-get update && apt-get install -y --no-install-recommends libreoffice fonts-thai-tlwg && rm -rf /var/lib/apt/lists/*
 
 # Built-in fonts (baked into the image)
 COPY fonts /usr/share/fonts/custom

@@ -40,7 +40,8 @@ jobs:
         with:
           context: .
           push: true
-          no-cache: true
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/document-converter:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/document-converter:buildcache,mode=max
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
