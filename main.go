@@ -149,18 +149,7 @@ func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
 	defer inputFile.Close()
 	defer os.Remove(inputFilePath)
 
-	if ext == ".html" || ext == ".htm" {
-		raw, err := io.ReadAll(file)
-		if err != nil {
-			http.Error(w, "Failed to read uploaded file", http.StatusInternalServerError)
-			return
-		}
-		fixed := fixFontNames(string(raw))
-		if _, err = inputFile.WriteString(fixed); err != nil {
-			http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
-			return
-		}
-	} else if _, err = io.Copy(inputFile, file); err != nil {
+	if _, err = io.Copy(inputFile, file); err != nil {
 		http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
 		return
 	}
