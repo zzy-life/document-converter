@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -181,11 +183,7 @@ func handleDocToDocx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter := "docx:MS Word 2007 XML"
-	if ext == ".html" || ext == ".htm" {
-		filter = "docx:MS Word 2007 XML:EmbedImages"
-	}
-	cmd := exec.Command("soffice", "--headless", "--convert-to", filter, inputFilePath, "--outdir", tempDir)
+	cmd := exec.Command("soffice", "--headless", "--convert-to", "docx:MS Word 2007 XML", inputFilePath, "--outdir", tempDir)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		fmt.Println(string(output))
 		http.Error(w, "Failed to convert file to DOCX", http.StatusInternalServerError)
@@ -244,10 +242,11 @@ func handleLocalHtmlToDocx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fix Windows-style backslashes in src/href attributes so LibreOffice can resolve them on Linux
-	fixedContent := fixFontNames(fixBackslashPaths(string(content)))
-
 	htmlDir := filepath.Dir(htmlPath)
+
+	// Inline images as base64 data URIs so LibreOffice embeds them in the DOCX
+	fixedContent := fixFontNames(inlineImages(fixBackslashPaths(string(content)), htmlDir))
+
 	baseName := time.Now().Format("20060102150405")
 	tmpHtmlPath := filepath.Join(htmlDir, baseName+ext)
 	outputFilePath := filepath.Join(tempDir, baseName+".docx")
@@ -258,7 +257,7 @@ func handleLocalHtmlToDocx(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(tmpHtmlPath)
 
-	cmd := exec.Command("soffice", "--headless", "--convert-to", "docx:MS Word 2007 XML:EmbedImages", tmpHtmlPath, "--outdir", tempDir)
+	cmd := exec.Command("soffice", "--headless", "--convert-to", "docx:MS Word 2007 XML", tmpHtmlPath, "--outdir", tempDir)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		fmt.Println(string(output))
 		http.Error(w, "Failed to convert file to DOCX", http.StatusInternalServerError)
@@ -281,6 +280,39 @@ func handleLocalHtmlToDocx(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to write DOCX to response", http.StatusInternalServerError)
 		return
 	}
+}
+
+// imgSrcRe matches src attributes in <img> tags that are not already data URIs or absolute URLs.
+var imgSrcRe = regexp.MustCompile(`(?i)<img([^>]*)\bsrc="([^"]*)"([^>]*)>`)
+
+// inlineImages replaces relative image src paths with base64 data URIs.
+// Images that cannot be read are left unchanged.
+func inlineImages(html, baseDir string) string {
+	return imgSrcRe.ReplaceAllStringFunc(html, func(match string) string {
+		parts := imgSrcRe.FindStringSubmatch(match)
+		if len(parts) != 4 {
+			return match
+		}
+		src := parts[2]
+		// Skip absolute URLs and existing data URIs
+		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") ||
+			strings.HasPrefix(src, "data:") || strings.HasPrefix(src, "/") {
+			return match
+		}
+		imgPath := filepath.Join(baseDir, filepath.FromSlash(src))
+		data, err := os.ReadFile(imgPath)
+		if err != nil {
+			fmt.Println("inlineImages: could not read", imgPath, err)
+			return match
+		}
+		mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(imgPath)))
+		if mimeType == "" {
+			mimeType = "image/png"
+		}
+		encoded := base64.StdEncoding.EncodeToString(data)
+		dataURI := "data:" + mimeType + ";base64," + encoded
+		return "<img" + parts[1] + `src="` + dataURI + `"` + parts[3] + ">"
+	})
 }
 
 // fixBackslashPaths replaces backslashes with forward slashes in HTML src/href attribute values.
